@@ -1,12 +1,14 @@
 {
   "homepage": "https://scriptura-ai.app",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "deploy": "npm run build && gh-pages -d dist",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.105.3",
     "@vitejs/plugin-react": "latest",
     "react": "latest",
     "react-dom": "latest",

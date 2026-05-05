@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FunctionsHttpError, createClient } from "@supabase/supabase-js";
 
 const RELIGIONS = [
   {
@@ -9,7 +10,7 @@ const RELIGIONS = [
     bg: "#1a1208",
     accent: "#e8a84c",
     glow: "rgba(196,135,58,0.3)",
-    desc: "The Dhamma",
+    desc: "Suttas, Sutras & Dhamma",
   },
   {
     id: "christianity",
@@ -19,7 +20,7 @@ const RELIGIONS = [
     bg: "#080f1a",
     accent: "#9dc4f0",
     glow: "rgba(107,159,212,0.3)",
-    desc: "The Scripture",
+    desc: "Bible & Christian Tradition",
   },
   {
     id: "hinduism",
@@ -29,7 +30,7 @@ const RELIGIONS = [
     bg: "#1a0d08",
     accent: "#e8784c",
     glow: "rgba(196,91,58,0.3)",
-    desc: "The Vedas",
+    desc: "Vedas, Gita & Puranas",
   },
   {
     id: "islam",
@@ -39,7 +40,7 @@ const RELIGIONS = [
     bg: "#08141a",
     accent: "#6ecfae",
     glow: "rgba(74,173,139,0.3)",
-    desc: "The Quran",
+    desc: "Quran, Hadith & Sunnah",
   },
   {
     id: "sikhism",
@@ -59,7 +60,7 @@ const RELIGIONS = [
     bg: "#08101a",
     accent: "#a8c8f8",
     glow: "rgba(123,159,212,0.3)",
-    desc: "The Torah & Talmud",
+    desc: "Torah, Tanakh & Talmud",
   },
   {
     id: "taoism",
@@ -69,7 +70,7 @@ const RELIGIONS = [
     bg: "#081410",
     accent: "#a8d4b4",
     glow: "rgba(125,175,138,0.3)",
-    desc: "The Tao Te Ching",
+    desc: "Tao Te Ching & Zhuangzi",
   },
   {
     id: "stoicism",
@@ -83,17 +84,14 @@ const RELIGIONS = [
   },
 ];
 
-const SYSTEM_PROMPT = (religion) => `You are a compassionate spiritual guide well-versed in ${religion}. 
-When given a personal struggle or problem, respond with:
-1. A direct, authentic quote from ${religion}'s sacred texts or teachings (with its source/reference)
-2. A warm, thoughtful explanation (3–5 sentences) of how this teaching speaks to the person's specific situation.
+const supabaseUrl =
+  import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-Format your response as JSON only, no markdown:
-{
-  "quote": "the exact quote here",
-  "source": "book/chapter/verse or teaching name",
-  "explanation": "your explanation here"
-}`;
+const supabase =
+  supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 export default function App() {
   const [selected, setSelected] = useState(null);
@@ -110,23 +108,32 @@ export default function App() {
     setResult(null);
     setError(null);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: SYSTEM_PROMPT(religion.label),
-          messages: [{ role: "user", content: problem.trim() }],
-        }),
+      if (!supabase) {
+        throw new Error("Supabase is not configured.");
+      }
+
+      const { data, error: functionError } = await supabase.functions.invoke("get-guidance", {
+        body: {
+          religionId: selected,
+          problem: problem.trim(),
+        },
       });
-      const data = await res.json();
-      const text = data.content?.map((b) => b.text || "").join("") || "";
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-      setResult(parsed);
+
+      if (functionError) {
+        if (
+          functionError instanceof FunctionsHttpError ||
+          functionError.name === "FunctionsHttpError"
+        ) {
+          const errorBody = await functionError.context.json().catch(() => null);
+          throw new Error(errorBody?.error || functionError.message);
+        }
+
+        throw functionError;
+      }
+
+      setResult(data);
     } catch (e) {
-      setError("Something went wrong. Please try again.");
+      setError(e.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -135,6 +142,7 @@ export default function App() {
   const reset = () => {
     setResult(null);
     setProblem("");
+    setError(null);
   };
 
   const bg = religion?.bg || "#0e0e0e";

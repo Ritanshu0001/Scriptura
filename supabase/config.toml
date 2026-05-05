@@ -1,0 +1,2 @@
+[functions.get-guidance]
+verify_jwt = false
